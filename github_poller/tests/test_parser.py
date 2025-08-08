@@ -1,6 +1,22 @@
 from github_poller.parser import DiffParser
 
 
+def test_ignore_updates_only_patch():
+    diff_lines = [
+        '@@ -13820,7 +13820,7 @@',
+        '         "company_name": "Affirm",',
+        '         "id": "148f33c0-78be-4f05-af96-c10e696ee96d",',
+        '         "title": "Software Engineer I - Backend - Identity Decisioning",',
+        '-        "active": true,',
+        '+        "active": false,',
+        '         "date_updated": 1749696764,',
+        '         "date_posted": 1749696764,',
+        '         "url": "https://job-boards.greenhouse.io/affirm/jobs/6605722003",',
+    ]
+    listings = DiffParser.parse_added_listings(diff_lines)
+    assert listings == []  # No new objects -> no notifications
+
+
 def test_parse_added_listing_realistic():
     diff_lines = [
         '@@ -18346,5 +18346,21 @@',
@@ -22,8 +38,8 @@ def test_parse_added_listing_realistic():
         '+        "date_posted": 1754528498,',
         '+        "company_url": "",',
         '+        "is_visible": true',
-        '     }',  # context closing brace
-        ' ]',  # context array closing
+        '     }',  # Context closing brace
+        ' ]',  # Context array closing
         '\\ No newline at end of file'
     ]
     listings = DiffParser.parse_added_listings(diff_lines)
