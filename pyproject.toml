@@ -21,4 +21,4 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["github_poller*", "common*"]
+include = ["github_poller*", "common*", "persistence*"]
