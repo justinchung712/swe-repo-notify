@@ -24,7 +24,7 @@ def test_parse_added_listing_realistic():
         '+        "is_visible": true',
         '     }',  # context closing brace
         ' ]',  # context array closing
-        ' No newline at end of file'
+        '\\ No newline at end of file'
     ]
     listings = DiffParser.parse_added_listings(diff_lines)
     assert len(listings) == 1
@@ -33,8 +33,10 @@ def test_parse_added_listing_realistic():
     assert job.id == "10757e82-0f1f-47cc-9dba-a04229089139"
     assert job.title == "Full-Stack Software Engineer"
 
+
 def test_parse_added_and_deleted_listings_realistic():
     diff_lines = [
+        # yapf: disable
         '@@ -517,22 +517,6 @@',
         '         "is_visible": true,',
         '         "sponsorship": "Other"',
@@ -43,7 +45,7 @@ def test_parse_added_and_deleted_listings_realistic():
         '-        "source": "Simplify",',
         '-        "company_name": "Konrad Group",',
         '-        "id": "6baf7235-65ab-415c-b0e7-e982f11951e0",',
-        '-        "title": "Software Developer u2013 Entry Level",',
+        '-        "title": "Software Developer \u2013 Entry Level",',
         '-        "active": false,',
         '-        "date_updated": 1723246690,',
         '-        "date_posted": 1723246690,',
@@ -66,7 +68,7 @@ def test_parse_added_and_deleted_listings_realistic():
         '-        "source": "Simplify",',
         '-        "company_name": "Belvedere Trading",',
         '-        "id": "0c126d54-19b1-45cf-8655-3cc3bbfecde9",',
-        '-        "title": "Quantitative Trader u2013 Entry Level 2025",',
+        '-        "title": "Quantitative Trader \u2013 Entry Level 2025",',
         '-        "active": false,',
         '-        "date_updated": 1723598087,',
         '-        "date_posted": 1723246982,',
@@ -89,7 +91,7 @@ def test_parse_added_and_deleted_listings_realistic():
         '-        "source": "Simplify",',
         '-        "company_name": "Konrad Group",',
         '-        "id": "3ef0f95b-7742-4447-a3de-44b0d83373fd",',
-        '-        "title": "Mobile Developer u2013 Entry Level",',
+        '-        "title": "Mobile Developer \u2013 Entry Level",',
         '-        "active": false,',
         '-        "date_updated": 1723246687,',
         '-        "date_posted": 1723246687,',
@@ -105,7 +107,7 @@ def test_parse_added_and_deleted_listings_realistic():
         '-        "source": "Simplify",',
         '-        "company_name": "Belvedere Trading",',
         '-        "id": "6c6dfa90-d789-473d-972e-f82f3b874d81",',
-        '-        "title": "Software Engineer u2013 Entry Level 2025",',
+        '-        "title": "Software Engineer \u2013 Entry Level 2025",',
         '-        "active": false,',
         '-        "date_updated": 1723597767,',
         '-        "date_posted": 1723246712,',
@@ -143,7 +145,8 @@ def test_parse_added_and_deleted_listings_realistic():
         '+        "sponsorship": "Other"',
         '     }',
         ' ]',
-        ' No newline at end of file'
+        '\\ No newline at end of file'
+        # yapf: enable
     ]
     listings = DiffParser.parse_added_listings(diff_lines)
     assert len(listings) == 1

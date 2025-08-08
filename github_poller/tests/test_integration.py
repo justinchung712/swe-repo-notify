@@ -8,7 +8,7 @@ class FakePoller(GithubPoller):
         super().__init__("owner", "repo", token="t")
 
     def get_new_commits(self, since_sha):
-        return ["sha2", "sha1"] # sha2 is newer than sha1
+        return ["sha2", "sha1"]  # sha2 is newer than sha1
 
     def get_commit_diff(self, sha):
         # Return one simple added listing per commit
