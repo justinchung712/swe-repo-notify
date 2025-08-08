@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swe-repo-notify"
+version = "0.1.0"
+description = "Notifier for SimplifyJobs repos with filtering and alerts"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7",
+  "python-dotenv>=1",
+  "beautifulsoup4>=4.12",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["github_poller*", "common*"]
