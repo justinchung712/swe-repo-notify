@@ -38,8 +38,8 @@ def test_parse_added_listing_realistic():
         '+        "date_posted": 1754528498,',
         '+        "company_url": "",',
         '+        "is_visible": true',
-        '     }',  # Context closing brace
-        ' ]',  # Context array closing
+        '     }',
+        ' ]',
         '\\ No newline at end of file'
     ]
     listings = DiffParser.parse_added_listings(diff_lines)
