@@ -17,6 +17,7 @@ class JobListing:
     company_url: Optional[str] = None
     is_visible: Optional[bool] = None
     category: Optional[str] = None
+    description: Optional[str] = None
 
 
 @dataclass

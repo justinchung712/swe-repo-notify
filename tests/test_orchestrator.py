@@ -1,5 +1,6 @@
 import sqlite3
 import pytest
+from job_scraper.scraper import JobScraper
 from persistence.db import init_db
 from persistence.repositories import RepoStateRepository, SentNotificationsRepository
 from common.models import JobListing, UserPreferences, UserContact
@@ -29,6 +30,19 @@ class FakePoller:
     def fetch_new_listings(self, since_sha):
         # Ignore since_sha in tests; return fixed set
         return (self.jobs, self.latest_sha)
+
+
+class DummyScraper:
+
+    async def fetch_description(self, url: str):
+
+        class JD:
+
+            def __init__(self, url):
+                self.url = url
+                self.text = "kubernetes spring boot"
+
+        return JD(url)
 
 
 def J(i, title, company="Acme", url=None, locs=None):
@@ -89,7 +103,8 @@ def test_orchestrator_batches_and_updates_sha(conn):
                               users=users,
                               sent_repo=sent_repo,
                               state_repo=state_repo,
-                              notifier=notifier)
+                              notifier=notifier,
+                              scraper=DummyScraper())
 
     # One email with two jobs; sha updated
     assert len(sender.emails) == 1
@@ -138,7 +153,8 @@ def test_orchestrator_respects_internship_subscription(conn):
                       users=users,
                       sent_repo=sent_repo,
                       state_repo=state_repo,
-                      notifier=notifier)
+                      notifier=notifier,
+                      scraper=DummyScraper())
 
     assert sender.emails == []  # No sends
 
@@ -177,7 +193,8 @@ def test_orchestrator_respects_newgrad_subscription(conn):
                       users=users,
                       sent_repo=sent_repo,
                       state_repo=state_repo,
-                      notifier=notifier)
+                      notifier=notifier,
+                      scraper=DummyScraper())
 
     assert sender.emails == []  # No sends
 
@@ -216,7 +233,8 @@ def test_orchestrator_dedup_second_run(conn):
                       users=users,
                       sent_repo=sent_repo,
                       state_repo=state_repo,
-                      notifier=notifier)
+                      notifier=notifier,
+                      scraper=DummyScraper())
     assert len(sender.emails) == 1
 
     # Second run with same jobs should not send again due to DB dedupe
@@ -226,5 +244,6 @@ def test_orchestrator_dedup_second_run(conn):
                       users=users,
                       sent_repo=sent_repo,
                       state_repo=state_repo,
-                      notifier=notifier)
+                      notifier=notifier,
+                      scraper=DummyScraper())
     assert len(sender.emails) == 1  # No additional email

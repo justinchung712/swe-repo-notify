@@ -1,8 +1,11 @@
+import asyncio
 from typing import List, Dict, Any
 from common.models import UserContact, JobListing, UserPreferences
 from github_poller.matcher import MatchingEngine
 from persistence.repositories import RepoStateRepository, SentNotificationsRepository
 from notification.service import NotificationService
+from job_scraper.scraper import JobScraper
+from job_scraper.enrich import enrich_descriptions
 
 NEW_GRAD_REPO = "SimplifyJobs/New-Grad-Positions"
 INTERNSHIP_REPO = "SimplifyJobs/Summer2026-Internships"  # Update if repo name changes
@@ -17,6 +20,24 @@ def _user_subscribed_to_repo(prefs: UserPreferences, repo_name: str) -> bool:
     return False
 
 
+def _run_async(coro):
+    """
+    Safely run an async coroutine from sync context.
+    If there is already a running loop (e.g., in some environments), use it.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        # We're already inside an event loop - create a task and wait
+        # NOTE: only safe if caller itself is async; for pure sync code, prefer asyncio.run
+        return asyncio.run_coroutine_threadsafe(coro, loop).result()
+    else:
+        return asyncio.run(coro)
+
+
 def run_poll_for_repo(
     repo_name: str,
     repo_label: str,
@@ -25,6 +46,7 @@ def run_poll_for_repo(
     sent_repo: SentNotificationsRepository,
     state_repo: RepoStateRepository,
     notifier: NotificationService,
+    scraper: JobScraper,
 ) -> Dict[str, Any]:
     """
     Polls a single repo, matches jobs to users, sends at most ONE notification per user,
@@ -33,6 +55,10 @@ def run_poll_for_repo(
     """
     last_sha = state_repo.get_last_sha(repo_name) or ""
     jobs, latest_sha = poller.fetch_new_listings(last_sha)
+
+    # Enrich descriptions for all new jobs (bounded concurrency inside)
+    if jobs:
+        _run_async(enrich_descriptions(jobs, scraper, concurrency=6))
 
     users_notified = 0
     jobs_sent_total = 0

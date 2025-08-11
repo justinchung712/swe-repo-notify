@@ -44,7 +44,8 @@ class MatchingEngine:
             return False
 
         # 2) Build searchable blob for role/tech
-        blob = f"{job.title} {job.company_name}".lower()
+        desc = (job.description or "")
+        blob = f"{job.title} {job.company_name} {desc}".lower()
 
         # 3) Role keyword match
         if _any_keyword_in_text(prefs.role_keywords, blob):

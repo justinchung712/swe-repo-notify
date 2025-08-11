@@ -122,3 +122,15 @@ def test_location_gate_with_no_role_tech_means_any_job_in_locations(
                             role_keywords=[],
                             location_keywords=["canada"])
     assert MatchingEngine.matches(sample_job, prefs)
+
+
+def test_tech_keyword_matches_description(sample_job):
+    sample_job.title = "Engineer"
+    sample_job.description = "We use Rust, Kafka, and Kubernetes."
+    prefs = UserPreferences(subscribe_new_grad=True,
+                            subscribe_internship=False,
+                            receive_all=False,
+                            tech_keywords=["kubernetes"],
+                            role_keywords=[],
+                            location_keywords=[])
+    assert MatchingEngine.matches(sample_job, prefs)
