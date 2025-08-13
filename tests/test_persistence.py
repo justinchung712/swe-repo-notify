@@ -38,7 +38,9 @@ def test_user_crud_roundtrip(conn):
                      email="a@b.com",
                      phone=None,
                      is_verified=False,
-                     prefs=prefs)
+                     prefs=prefs,
+                     notify_email=True,
+                     notify_sms=False)
 
     got = repo.get_user(user_id)
     assert got["email"] == "a@b.com"

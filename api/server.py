@@ -1,0 +1,178 @@
+import os, uuid
+from fastapi import FastAPI, HTTPException, Depends, Query
+from fastapi.responses import HTMLResponse
+from pydantic import EmailStr
+from typing import Optional
+from persistence.db import get_conn, init_db
+from persistence.repositories import UserRepository
+from common.models import UserPreferences, UserContact
+from notification.service import NotificationService
+from api.schemas import SubscribeIn, SubscribeOut, VerifyOut, RequestEditLinkIn, UpdatePrefsIn
+from api.security import make_token, read_token
+
+APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000")
+VERIFY_TTL = 60 * 15  # 15 minutes
+EDIT_TTL = 60 * 15
+
+app = FastAPI(title="swe-repo-notify API")
+
+
+# --- Wiring: db + repos + notifier (here: simple console sender; swap later) ---
+def get_user_repo():
+    # Singleton-ish naive approach for demo
+    if not hasattr(get_user_repo, "conn"):
+        get_user_repo.conn = get_conn(os.getenv("DB_PATH") or "db.sqlite3")
+        init_db(get_user_repo.conn)
+    return UserRepository(get_user_repo.conn)
+
+
+class ConsoleSender:
+
+    def send_email(self, to_addr, subject, html_body, text_body):
+        print(f"[EMAIL → {to_addr}] {subject}\n{text_body}\n")
+
+    def send_sms(self, to_number, text_body):
+        print(f"[SMS → {to_number}] {text_body}\n")
+
+
+notifier = NotificationService(
+    ConsoleSender(),
+    edit_link_builder=lambda u: f"{APP_BASE_URL}/edit?token={{TOKEN}}")
+
+
+# --- Helpers ---
+def _prefs_from_model(p) -> UserPreferences:
+    return UserPreferences(
+        subscribe_new_grad=p.subscribe_new_grad,
+        subscribe_internship=p.subscribe_internship,
+        receive_all=p.receive_all,
+        tech_keywords=p.tech_keywords,
+        role_keywords=p.role_keywords,
+        location_keywords=p.location_keywords,
+    )
+
+
+def _send_verify_link(email: Optional[str], phone: Optional[str],
+                      user_id: str):
+    payload = {"purpose": "verify", "uid": user_id}
+    token = make_token(payload)
+    link = f"{APP_BASE_URL}/verify?token={token}"
+    subj = "Verify your subscription"
+    body = f"Tap to verify: {link}\nThis link expires in 15 minutes."
+    if email:
+        notifier.sender.send_email(email, subj, body, body)
+    if phone:
+        notifier.sender.send_sms(phone, body)
+
+
+def _send_edit_link(email: Optional[str], phone: Optional[str], user_id: str):
+    payload = {"purpose": "edit", "uid": user_id}
+    token = make_token(payload)
+    link = f"{APP_BASE_URL}/edit?token={token}"
+    subj = "Edit your notification preferences"
+    body = f"Edit link: {link}\nThis link expires in 15 minutes."
+    if email:
+        notifier.sender.send_email(email, subj, body, body)
+    if phone:
+        notifier.sender.send_sms(phone, body)
+
+
+# --- Routes ---
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+
+@app.post("/subscribe", response_model=SubscribeOut)
+def subscribe(payload: SubscribeIn,
+              repo: UserRepository = Depends(get_user_repo)):
+    if not payload.email and not payload.phone:
+        raise HTTPException(400, "Provide email or phone.")
+    if not payload.notify_email and not payload.notify_sms:
+        raise HTTPException(400, "Enable at least one notification channel.")
+    # New or existing user?
+    row = repo.get_user_by_email_or_phone(payload.email, payload.phone)
+    if row:
+        user_id = row["id"]
+        repo.update_user(
+            user_id=user_id,
+            email=payload.email if payload.email is not None else row["email"],
+            phone=payload.phone if payload.phone is not None else row["phone"],
+            is_verified=payload.is_verified,
+            prefs=_prefs_from_model(payload.prefs),
+            notify_email=payload.notify_email,
+            notify_sms=payload.notify_sms)
+    else:
+        user_id = str(uuid.uuid4())
+        repo.create_user(user_id=user_id,
+                         email=payload.email,
+                         phone=payload.phone,
+                         is_verified=False,
+                         prefs=_prefs_from_model(payload.prefs),
+                         notify_email=payload.notify_email,
+                         notify_sms=payload.notify_sms)
+    _send_verify_link(payload.email, payload.phone, user_id)
+    return SubscribeOut(status="verification_sent")
+
+
+@app.get("/verify", response_model=VerifyOut)
+def verify(token: str = Query(...),
+           repo: UserRepository = Depends(get_user_repo)):
+    try:
+        data = read_token(token, max_age_seconds=VERIFY_TTL)
+    except ValueError as e:
+        raise HTTPException(400, f"Token error: {e}")
+    if data.get("purpose") != "verify":
+        raise HTTPException(400, "Wrong token purpose.")
+    uid = data.get("uid")
+    if not uid:
+        raise HTTPException(400, "Invalid token payload.")
+    repo.set_verified(uid, True)
+    return VerifyOut(status="verified")
+
+
+@app.post("/request-edit-link", response_model=SubscribeOut)
+def request_edit_link(payload: RequestEditLinkIn,
+                      repo: UserRepository = Depends(get_user_repo)):
+    if not payload.email and not payload.phone:
+        raise HTTPException(400, "Provide email or phone.")
+    row = repo.get_user_by_email_or_phone(payload.email, payload.phone)
+    if not row or not row["is_verified"]:
+        # Do not reveal existence; just say "sent" to avoid user enumeration
+        return SubscribeOut(status="sent")
+    _send_edit_link(row["email"], row["phone"], row["id"])
+    return SubscribeOut(status="sent")
+
+
+@app.get("/edit", response_class=HTMLResponse)
+def edit_page(token: str = Query(...)):
+    # NOTE: Nothing updated here. Just a minimal HTML page to POST new prefs with token.
+    # A real app would serve a proper UI here.
+    html = f"""
+    <html><body>
+      <h1>Edit Preferences</h1>
+      <p>Submit your new preferences via POST /update-prefs with this token.</p>
+      <code>{token}</code>
+    </body></html>
+    """
+    return HTMLResponse(html)
+
+
+@app.post("/update-prefs", response_model=SubscribeOut)
+def update_prefs(body: UpdatePrefsIn,
+                 repo: UserRepository = Depends(get_user_repo)):
+    try:
+        data = read_token(body.token, max_age_seconds=EDIT_TTL)
+    except ValueError as e:
+        raise HTTPException(400, f"Token error: {e}")
+    if data.get("purpose") != "edit":
+        raise HTTPException(400, "Wrong token purpose.")
+    uid = data.get("uid")
+    if not uid:
+        raise HTTPException(400, "Invalid token payload.")
+    repo.update_user(user_id=uid,
+                     email=None,
+                     phone=None,
+                     is_verified=None,
+                     prefs=_prefs_from_model(body))
+    return SubscribeOut(status="updated")

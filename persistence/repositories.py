@@ -26,21 +26,24 @@ class UserRepository:
 
     def create_user(self, user_id: str, email: Optional[str],
                     phone: Optional[str], is_verified: bool,
-                    prefs: UserPreferences) -> None:
+                    prefs: UserPreferences, notify_email: bool,
+                    notify_sms: bool) -> None:
         now = _now_iso()
         self.conn.execute(
             """
             INSERT INTO users (
               id, email, phone, is_verified,
+              notify_email, notify_sms,
               subscribe_new_grad, subscribe_internship, receive_all,
               tech_keywords, role_keywords, location_keywords,
               created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, email, phone, int(is_verified),
-             int(prefs.subscribe_new_grad), int(prefs.subscribe_internship),
-             int(prefs.receive_all), _list_to_csv(
-                 prefs.tech_keywords), _list_to_csv(prefs.role_keywords),
+            (user_id, email, phone, int(is_verified), int(notify_email),
+             int(notify_sms), int(prefs.subscribe_new_grad),
+             int(prefs.subscribe_internship), int(
+                 prefs.receive_all), _list_to_csv(
+                     prefs.tech_keywords), _list_to_csv(prefs.role_keywords),
              _list_to_csv(prefs.location_keywords), now, now),
         )
         self.conn.commit()
@@ -64,14 +67,21 @@ class UserRepository:
             "email": row["email"],
             "phone": row["phone"],
             "is_verified": row["is_verified"],
+            "notify_email": row["notify_email"],
+            "notify_sms": row["notify_sms"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
             "prefs": prefs,
         }
 
-    def update_user(self, user_id: str, email: Optional[str],
-                    phone: Optional[str], is_verified: Optional[bool],
-                    prefs: Optional[UserPreferences]) -> None:
+    def update_user(self,
+                    user_id: str,
+                    email: Optional[str],
+                    phone: Optional[str],
+                    is_verified: Optional[bool],
+                    prefs: Optional[UserPreferences],
+                    notify_email: Optional[bool] = None,
+                    notify_sms: Optional[bool] = None) -> None:
         # Build dynamic update
         fields = []
         params: List[Any] = []
@@ -84,6 +94,12 @@ class UserRepository:
         if is_verified is not None:
             fields.append("is_verified = ?")
             params.append(int(is_verified))
+        if notify_email is not None:
+            fields.append("notify_email = ?")
+            params.append(int(notify_email))
+        if notify_sms is not None:
+            fields.append("notify_sms = ?")
+            params.append(int(notify_sms))
         if prefs is not None:
             fields.extend([
                 "subscribe_new_grad = ?",
@@ -107,6 +123,30 @@ class UserRepository:
         sql = f"UPDATE users SET {', '.join(fields)} WHERE id = ?"
         self.conn.execute(sql, tuple(params))
         self.conn.commit()
+
+    def get_user_by_email_or_phone(self, email: Optional[str],
+                                   phone: Optional[str]):
+        if email:
+            cur = self.conn.execute("SELECT * FROM users WHERE email = ?",
+                                    (email, ))
+            row = cur.fetchone()
+            if row: return row
+        if phone:
+            cur = self.conn.execute("SELECT * FROM users WHERE phone = ?",
+                                    (phone, ))
+            row = cur.fetchone()
+            if row: return row
+        return None
+
+    def set_verified(self, user_id: str, verified: bool):
+        self.conn.execute(
+            "UPDATE users SET is_verified = ?, updated_at = ? WHERE id = ?",
+            (1 if verified else 0, _now_iso(), user_id))
+        self.conn.commit()
+
+    def list_verified_users(self):
+        cur = self.conn.execute("SELECT * FROM users WHERE is_verified = 1")
+        return cur.fetchall()
 
 
 class RepoStateRepository:

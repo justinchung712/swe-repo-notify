@@ -13,6 +13,11 @@ dependencies = [
   "httpx[http2]>=0.27.0",
   "beautifulsoup4>=4.12.0",
   "pytest-asyncio>=0.23",
+  "fastapi>=0.112",
+  "uvicorn[standard]>=0.30",
+  "itsdangerous>=2.2",
+  "pydantic>=2.7",
+  "email-validator>=2.2.0",
 ]
 
 [project.optional-dependencies]
@@ -23,4 +28,4 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["github_poller*", "common*", "persistence*", "notification*", "job_scraper*"]
+include = ["github_poller*", "common*", "persistence*", "notification*", "job_scraper*", "api*"]

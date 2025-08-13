@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT,
   phone TEXT,
   is_verified INTEGER NOT NULL DEFAULT 0,
+  notify_email INTEGER NOT NULL DEFAULT 0,
+  notify_sms INTEGER NOT NULL DEFAULT 0,
   subscribe_new_grad INTEGER NOT NULL DEFAULT 0,
   subscribe_internship INTEGER NOT NULL DEFAULT 0,
   receive_all INTEGER NOT NULL DEFAULT 0,
@@ -35,8 +37,9 @@ CREATE TABLE IF NOT EXISTS sent_notifications (
 def get_conn(path: Optional[str] = None) -> sqlite3.Connection:
     """
     Returns a sqlite3 connection. If path is None, uses in-memory DB.
+    Use check_same_thread=False so FastAPI handlers (thread pool) can share it.
     """
-    conn = sqlite3.connect(path or ":memory:")
+    conn = sqlite3.connect(path or ":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
