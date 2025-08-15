@@ -34,3 +34,9 @@ class UpdatePrefsIn(PrefsIn):
 
 class VerifyOut(BaseModel):
     status: str
+
+
+class UnsubscribeConfirmIn(BaseModel):
+    token: str
+    disable_email: bool = True
+    disable_sms: bool = True

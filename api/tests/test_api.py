@@ -1,11 +1,11 @@
-import os
+import time
 import sqlite3
 import pytest
 from fastapi.testclient import TestClient
 
 from persistence.db import init_db
 from persistence.repositories import UserRepository
-from common.models import UserPreferences, UserContact
+from common.models import UserPreferences
 
 # Import the app and helpers to override
 import api.server as srv
@@ -179,3 +179,122 @@ def test_request_edit_link_unknown_user_returns_sent(app_client):
     assert r.json()["status"] == "sent"
     # But since user doesn't exist/verified, didn't actually queue any email
     # (Override doesn't simulate sending for unknowns.)
+
+
+def test_unsubscribe_form_and_confirm(app_client):
+    client, fake_sender, captured, user_repo = app_client
+
+    # Subscribe + verify
+    payload = {
+        "email": "x@y.com",
+        "notify_email": True,
+        "notify_sms": True,
+        "prefs": {
+            "subscribe_new_grad": True,
+            "subscribe_internship": False,
+            "receive_all": True,
+            "tech_keywords": [],
+            "role_keywords": [],
+            "location_keywords": []
+        }
+    }
+    r = client.post("/subscribe", json=payload)
+    assert r.status_code == 200
+    uid, verify_token = captured["verify"][0]
+    client.get("/verify", params={"token": verify_token})
+
+    # Build unsubscribe token
+    from api.security import make_token
+    token = make_token({"purpose": "unsubscribe", "uid": uid})
+
+    # GET form
+    r = client.get("/unsubscribe", params={"token": token})
+    assert r.status_code == 200
+    assert "Unsubscribe" in r.text
+
+    # POST confirm: disable email only, keep sms on
+    body = {"token": token, "disable_email": True, "disable_sms": False}
+    r = client.post("/unsubscribe/confirm", json=body)
+    assert r.status_code == 200
+    assert r.json()["status"] == "unsubscribed"
+
+    row = user_repo.get_user(uid)
+    assert row["notify_email"] == 0
+    assert row["notify_sms"] == 1
+
+
+def test_unsubscribe_token_expiry(app_client, monkeypatch, user_repo=None):
+    """
+    Monkeypatch UNSUB_TTL to be very short, generate a token, wait, and ensure it 400s.
+    """
+    client, fake_sender, captured, user_repo = app_client
+
+    # Seed a verified user
+    prefs = UserPreferences(True, False, True, [], [], [])
+    user_repo.create_user(
+        user_id="u_exp",
+        email="exp@example.com",
+        phone=None,
+        is_verified=True,
+        prefs=prefs,
+        notify_email=True,
+        notify_sms=False,
+    )
+
+    # Token valid for ~1 second
+    monkeypatch.setattr(srv, "UNSUB_TTL", 1)
+
+    token = make_token({"purpose": "unsubscribe", "uid": "u_exp"})
+    # Let it expire
+    time.sleep(2.0)
+
+    r = client.get("/unsubscribe", params={"token": token})
+    assert r.status_code == 400
+    assert "Token error" in r.text
+
+
+def test_subscribe_preserves_verified_state(app_client):
+    """
+    When an existing verified user calls /subscribe (e.g., to update prefs),
+    keep is_verified=1 and do NOT send a new verify email.
+    """
+    client, fake_sender, captured, user_repo = app_client
+
+    # Create a verified user directly in the repo
+    prefs = UserPreferences(True, False, True, [], [], [])
+    user_repo.create_user(
+        user_id="u_preserve",
+        email="keep@verified.com",
+        phone=None,
+        is_verified=True,
+        prefs=prefs,
+        notify_email=True,
+        notify_sms=False,
+    )
+
+    # Call /subscribe to "update" their settings (flip a flag to show it updates)
+    r = client.post(
+        "/subscribe",
+        json={
+            "email": "keep@verified.com",
+            "phone": None,
+            "notify_email": True,
+            "notify_sms": True,  # Change something
+            "prefs": {
+                "subscribe_new_grad": False,
+                "subscribe_internship": True,
+                "receive_all": True,
+                "tech_keywords": [],
+                "role_keywords": [],
+                "location_keywords": []
+            }
+        })
+    assert r.status_code == 200
+
+    # Verify state is preserved and notify flags updated
+    row = user_repo.get_user("u_preserve")
+    assert row["is_verified"] == 1  # Unchanged
+    assert row["notify_email"] == 1  # Still on
+    assert row["notify_sms"] == 1  # Updated
+    # No verify email should have been sent during this call
+    assert captured["verify"] == []

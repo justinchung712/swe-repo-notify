@@ -1,3 +1,4 @@
+import os
 from typing import Callable, List
 from common.models import JobListing, UserContact
 
@@ -11,10 +12,16 @@ class NotificationService:
     `edit_link_builder` is a function(user_contact) -> str
     """
 
-    def __init__(self, sender, edit_link_builder: Callable[[UserContact],
-                                                           str]):
+    def __init__(self,
+                 sender,
+                 edit_link_builder: Callable[[UserContact], str],
+                 unsubscribe_link_builder=None):
         self.sender = sender
         self.edit_link_builder = edit_link_builder
+        self.unsubscribe_link_builder = unsubscribe_link_builder or (
+            lambda u:
+            f"{os.getenv('APP_BASE_URL','http://localhost:8000')}/request-edit-link"
+        )
 
     def send_summary(self, user: UserContact, jobs: List[JobListing],
                      repo_label: str) -> None:
@@ -29,8 +36,9 @@ class NotificationService:
         # Build content
         edit_link = self.edit_link_builder(user)
         subject = self._subject(len(jobs), repo_label)
-        text_body = self._text_body(jobs, edit_link, repo_label)
-        html_body = self._html_body(jobs, edit_link, repo_label)
+        ulink = self.unsubscribe_link_builder(user)
+        text_body = self._text_body(jobs, edit_link, repo_label, ulink)
+        html_body = self._html_body(jobs, edit_link, repo_label, ulink)
 
         # Channels
         if user.notify_email and user.email:
@@ -44,8 +52,8 @@ class NotificationService:
         return f"[{repo_label}] {n} new match{'es' if n != 1 else ''} for you"
 
     @staticmethod
-    def _text_body(jobs: List[JobListing], edit_link: str,
-                   repo_label: str) -> str:
+    def _text_body(jobs: List[JobListing], edit_link: str, repo_label: str,
+                   unsubscribe_link: str) -> str:
         # SMS-safe + email-compatible plain text
         lines = [
             f"{repo_label}: {len(jobs)} new match{'es' if len(jobs)!=1 else ''}"
@@ -56,11 +64,13 @@ class NotificationService:
             lines.append(f"- {j.title} @ {j.company_name}{loc} → {j.url}")
         lines.append("")
         lines.append(f"Edit your preferences: {edit_link}")
+        lines.append(f"Unsubscribe: {unsubscribe_link}")
+        lines.append("SMS: reply STOP to opt out.")
         return "\n".join(lines)
 
     @staticmethod
-    def _html_body(jobs: List[JobListing], edit_link: str,
-                   repo_label: str) -> str:
+    def _html_body(jobs: List[JobListing], edit_link: str, repo_label: str,
+                   unsubscribe_link: str) -> str:
         lis = []
         for j in jobs:
             loc = f" &middot; {', '.join(j.locations)}" if j.locations else ""
@@ -73,6 +83,6 @@ class NotificationService:
           <ul>
             {''.join(lis)}
           </ul>
-          <p><a href="{edit_link}">Edit your preferences</a></p>
+          <p><a href="{edit_link}">Edit your preferences</a> · <a href="{unsubscribe_link}">Unsubscribe</a></p>
         </div>
         """.strip()
