@@ -12,7 +12,7 @@ class JobListing:
     locations: List[str]
     sponsorship: str
     active: bool
-    source: str
+    source: Optional[str] = None
     date_updated: Optional[int] = None
     company_url: Optional[str] = None
     is_visible: Optional[bool] = None

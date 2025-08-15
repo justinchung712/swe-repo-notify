@@ -3,6 +3,7 @@ from github_poller.parser import DiffParser
 
 def test_ignore_updates_only_patch():
     diff_lines = [
+        # yapf: disable
         '@@ -13820,7 +13820,7 @@',
         '         "company_name": "Affirm",',
         '         "id": "148f33c0-78be-4f05-af96-c10e696ee96d",',
@@ -11,7 +12,8 @@ def test_ignore_updates_only_patch():
         '+        "active": false,',
         '         "date_updated": 1749696764,',
         '         "date_posted": 1749696764,',
-        '         "url": "https://job-boards.greenhouse.io/affirm/jobs/6605722003",',
+        '         "url": "https://job-boards.greenhouse.io/affirm/jobs/6605722003",'
+        # yapf: enable
     ]
     listings = DiffParser.parse_added_listings(diff_lines)
     assert listings == []  # No new objects -> no notifications
@@ -19,6 +21,7 @@ def test_ignore_updates_only_patch():
 
 def test_parse_added_listing_realistic():
     diff_lines = [
+        # yapf: disable
         '@@ -18346,5 +18346,21 @@',
         '         "company_url": "https://simplify.jobs/c/Boeing",',
         '         "is_visible": true,',
@@ -41,6 +44,7 @@ def test_parse_added_listing_realistic():
         '     }',
         ' ]',
         '\\ No newline at end of file'
+        # yapf: enable
     ]
     listings = DiffParser.parse_added_listings(diff_lines)
     assert len(listings) == 1
@@ -170,3 +174,31 @@ def test_parse_added_and_deleted_listings_realistic():
     assert job.company_name == "Zoro"
     assert job.id == "e825cd57-2482-4e89-b28a-901424d7269b"
     assert job.title == "Software Engineer I - Release Platform"
+
+
+def test_parse_ignores_unknown_fields():
+    diff_lines = [
+        '@@ -1,1 +1,9 @@',
+        '         "company_url": "https://blah.blah.blah",',
+        '         "is_visible": true,',
+        '+    },',
+        '+    {',
+        '+        "company_name": "X",',
+        '+        "id": "abc",',
+        '+        "title": "Engineer",',
+        '+        "url": "https://x",',
+        '+        "date_posted": 1234567890,',
+        '+        "locations": [',
+        '+            "Everywhere"',
+        '+        ],',
+        '+        "sponsorship": "Other",',
+        '+        "active": true,',
+        '+        "source": "AlmondCroffle",',
+        '+        "terms": "full-time"',  # Unknown
+        '     }',
+        ' ]',
+        '\\ No newline at end of file'
+    ]
+    out = DiffParser.parse_added_listings(diff_lines)
+    assert len(out) == 1
+    assert out[0].company_name == "X"

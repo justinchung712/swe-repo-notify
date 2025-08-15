@@ -6,14 +6,15 @@ from common.models import JobListing
 
 class GithubPoller:
 
-    def __init__(self, owner: str, repo: str, token: str):
+    def __init__(self, owner: str, repo: str, token: str, branch: str = "dev"):
         self.owner = owner
         self.repo = repo
         self.headers = {"Authorization": f"token {token}"}
+        self.branch = branch
 
     def get_new_commits(self, since_sha: str) -> List[str]:
         url = f"https://api.github.com/repos/{self.owner}/{self.repo}/commits"
-        params = {"sha": "main", "per_page": 100}
+        params = {"sha": self.branch, "per_page": 100}
         resp = requests.get(url, headers=self.headers, params=params)
         resp.raise_for_status()
         commits = resp.json()

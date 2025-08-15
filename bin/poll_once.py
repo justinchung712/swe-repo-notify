@@ -1,11 +1,17 @@
 import os
+import socket
+import uuid
+
 from persistence.db import get_conn, init_db
 from persistence.repositories import RepoStateRepository, SentNotificationsRepository, UserRepository
+from persistence.lock import acquire_lock
 from notification.service import NotificationService
 from notification.orchestrator import run_poll_for_repo, NEW_GRAD_REPO, INTERNSHIP_REPO
 from notification.users import hydrate_users
 from job_scraper.scraper import JobScraper
 from github_poller.poller import GithubPoller
+from api.security import make_token
+from common.models import UserContact
 
 
 def get_github_token():
@@ -29,9 +35,16 @@ class ConsoleSender:
         print(f"[SMS → {to_number}] {text_body}\n")
 
 
-def build_edit_link(user_contact):
+def build_edit_link(user: UserContact) -> str:
     base = os.getenv("APP_BASE_URL", "http://localhost:8000")
-    return f"{base}/request-edit-link"  # MVP: message points them to request a fresh link
+    token = make_token({"purpose": "edit", "uid": user.id})
+    return f"{base}/edit?token={token}"
+
+
+def build_unsubscribe_link(user: UserContact) -> str:
+    base = os.getenv("APP_BASE_URL", "http://localhost:8000")
+    token = make_token({"purpose": "unsubscribe", "uid": user.id})
+    return f"{base}/unsubscribe?token={token}"
 
 
 def main():
@@ -44,36 +57,56 @@ def main():
     rows = user_repo.list_verified_users()
     users = hydrate_users(rows)
 
-    sender = ConsoleSender()  # Swap to real providers later
-    notifier = NotificationService(sender, edit_link_builder=build_edit_link)
+    sender = ConsoleSender()
+    notifier = NotificationService(
+        sender,
+        edit_link_builder=build_edit_link,
+        unsubscribe_link_builder=build_unsubscribe_link)
     scraper = JobScraper(cache=None, use_headless_fallback=False)
 
     token = get_github_token() or ""
 
-    ng = GithubPoller("SimplifyJobs", "New-Grad-Positions", token=token)
+    NG_BRANCH = os.getenv("NG_BRANCH", "dev")
+    INTERN_BRANCH = os.getenv("INTERN_BRANCH", "dev")
+
+    ng = GithubPoller("SimplifyJobs",
+                      "New-Grad-Positions",
+                      token=token,
+                      branch=NG_BRANCH)
     internships = GithubPoller("SimplifyJobs",
                                "Summer2026-Internships",
-                               token=token)
+                               token=token,
+                               branch=INTERN_BRANCH)
 
-    stats1 = run_poll_for_repo(repo_name=NEW_GRAD_REPO,
-                               repo_label="New Grad",
-                               poller=ng,
-                               users=users,
-                               sent_repo=sent_repo,
-                               state_repo=state_repo,
-                               notifier=notifier,
-                               scraper=scraper)
-    print("NG stats:", stats1)
+    locker_owner = f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
 
-    stats2 = run_poll_for_repo(repo_name=INTERNSHIP_REPO,
-                               repo_label="Internships",
-                               poller=internships,
-                               users=users,
-                               sent_repo=sent_repo,
-                               state_repo=state_repo,
-                               notifier=notifier,
-                               scraper=scraper)
-    print("Intern stats:", stats2)
+    # Run each repo under its own lock to avoid double-processing
+    for label, repo_name, poller in [
+        ("NG", NEW_GRAD_REPO, ng),
+        ("Intern", INTERNSHIP_REPO, internships),
+    ]:
+        lock_name = f"poller:{repo_name}"
+        # Hold the lock up to 120s; skip if unable to get it quickly
+        from_time = "start"
+        with acquire_lock(conn,
+                          name=lock_name,
+                          owner=locker_owner,
+                          ttl_seconds=120) as ok:
+            if not ok:
+                print(f"[{label}] Another instance holds the lock; skipping.")
+                continue
+
+            stats = run_poll_for_repo(
+                repo_name=repo_name,
+                repo_label="New Grad" if label == "NG" else "Internships",
+                poller=poller,
+                users=users,
+                sent_repo=sent_repo,
+                state_repo=state_repo,
+                notifier=notifier,
+                scraper=scraper,
+            )
+            print(f"[{label}] stats:", stats)
 
 
 if __name__ == "__main__":
