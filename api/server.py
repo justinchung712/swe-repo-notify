@@ -8,6 +8,25 @@ from common.models import UserPreferences, UserContact
 from notification.service import NotificationService
 from api.schemas import SubscribeIn, SubscribeOut, VerifyOut, RequestEditLinkIn, UpdatePrefsIn, UnsubscribeConfirmIn
 from api.security import make_token, read_token
+from fastapi.middleware.cors import CORSMiddleware
+
+APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000")
+VERIFY_TTL = 60 * 15  # 15 minutes
+EDIT_TTL = 60 * 15  # 15 minutes
+UNSUB_TTL = 60 * 60 * 24 * 30  # 30 days
+
+app = FastAPI(title="swe-repo-notify API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 def build_edit_link(user: UserContact) -> str:
@@ -18,14 +37,6 @@ def build_edit_link(user: UserContact) -> str:
 def build_unsubscribe_link(user: UserContact) -> str:
     token = make_token({"purpose": "unsubscribe", "uid": user.id})
     return f"{APP_BASE_URL}/unsubscribe?token={token}"
-
-
-APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000")
-VERIFY_TTL = 60 * 15  # 15 minutes
-EDIT_TTL = 60 * 15  # 15 minutes
-UNSUB_TTL = 60 * 60 * 24 * 30  # 30 days
-
-app = FastAPI(title="swe-repo-notify API")
 
 
 # --- Wiring: db + repos + notifier (here: simple console sender; swap later) ---
