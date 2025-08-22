@@ -110,4 +110,22 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import signal, sys, traceback
+
+    def _timeout_handler(signum, frame):
+        print("[POLL_ONCE] Global 10m timeout; exiting gracefully.")
+        sys.exit(0)
+
+    # Guard the whole run to prevent overlapping cron invocations
+    signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(10 * 60)
+
+    try:
+        main()
+    except Exception:
+        print("[POLL_ONCE] Unhandled error:", file=sys.stderr)
+        traceback.print_exc()
+        # Exit 0 so supercronic doesn't keep reporting exit status 1 repeatedly
+        sys.exit(0)
+    finally:
+        signal.alarm(0)

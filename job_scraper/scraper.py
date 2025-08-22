@@ -8,7 +8,12 @@ from bs4 import BeautifulSoup
 
 # Factory wrapper so we can monkeypatch in tests
 def AsyncClientFactory():
-    return httpx.AsyncClient(timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(connect=5, read=10, write=10, pool=5),
+        headers={"User-Agent": "swe-repo-notify/1.0"},
+        http2=True,
+        follow_redirects=True,
+    )
 
 
 @dataclass
