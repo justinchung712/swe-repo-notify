@@ -31,27 +31,17 @@ This project polls these repositories frequently, detects new job listings, and 
 ## How It Works
 
 1. **Subscribe**
-
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-Provide your email/phone and notification preferences via the frontend.
-
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-You’ll get a verification link to confirm.
+    - Provide your email/phone and notification preferences via the frontend.
+    - You’ll get a verification link to confirm.
 
 2. **Filter**
-
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-Enter keywords like `"backend"`, `"San Francisco"`, `"Python"` — only matching postings from the repos trigger notifications.
+    - Enter keywords like `"backend"`, `"San Francisco"`, `"Python"` — only matching postings from the repos trigger notifications.
 
 3. **Notify**
-
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-When new listings hit the repo, the system matches them against your filters and sends you an instant email/SMS.
+    - When new listings hit the repo, the system matches them against your filters and sends you an instant email/SMS.
 
 4. **Edit/Unsubscribe**
-
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-Links in every message let you edit preferences or unsubscribe.
+    - Links in every message let you edit preferences or unsubscribe.
 
 ## Contributing
 
@@ -59,3 +49,4 @@ Contributions are welcome!
 - Fork the repo
 - Create a feature branch
 - Submit a PR
+
