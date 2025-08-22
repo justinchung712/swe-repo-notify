@@ -182,6 +182,27 @@ function SubscribeForm() {
     <Card className="shadow-xl border-slate-200">
       <CardContent className="p-6 space-y-6">
         <h2 className="text-xl font-semibold">Subscribe</h2>
+        <p className="text-sm text-slate-600">
+          You'll receive notifications for new postings from{" "}
+          <a
+            className="underline"
+            href="https://github.com/SimplifyJobs/New-Grad-Positions"
+            target="_blank"
+            rel="noreferrer"
+          >
+            SimplifyJobs/New-Grad-Positions
+          </a>{" "}
+          and{" "}
+          <a
+            className="underline"
+            href="https://github.com/SimplifyJobs/Summer2026-Internships"
+            target="_blank"
+            rel="noreferrer"
+          >
+            SimplifyJobs/Summer2026-Internships
+          </a>
+          .
+        </p>
         {msg && (
           <Banner
             kind={
@@ -532,7 +553,9 @@ function Shell() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <div className="max-w-3xl mx-auto px-4 py-10">
         <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold">Job Notify</h1>
+          <h1 className="text-3xl font-bold">
+            Personalized Tech Jobs & Internships Notifications
+          </h1>
           <p className="text-slate-600">
             Subscribe, edit preferences, or unsubscribe securely.
           </p>
