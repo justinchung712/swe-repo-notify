@@ -1,2 +1,2 @@
-# Every 15 minutes
-*/15 * * * * /usr/local/bin/python -m bin.poll_once
+# Every 15 minutes — pipe stdout/stderr to container logs
+*/15 * * * * /usr/local/bin/python -m bin.poll_once >> /proc/1/fd/1 2>&1
